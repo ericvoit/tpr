@@ -25,6 +25,16 @@ author:
   code: '20759'
   region: Maryland
   country: USA
+- ins: C. Gaddam
+  name: Chennakesava Reddy Gaddam
+  org: Cisco Systems, Inc.
+  abbrev: Cisco
+  email: chgaddam@cisco.com
+  street: Cessna Business Park, Kadubeesanahalli
+  city: Bangalore
+  code: '560103'
+  region: Karnataka
+  country: India
 - ins: G. Fedorkow
   name: Guy C. Fedorkow
   org: Juniper Networks
@@ -318,39 +328,45 @@ After the appraisal and generation of the Trustworthiness Vector, the following 
 
 (2.2) the appraised Trustworthiness Vector of the Attester as calculated in {{verifier-A}}
 
-(2.3) the PCR state information from the TPM Quote of (1) plus the time information associated with the TPM Quote of (1).  Specifically if the Attester has a TPM2, then the values of the TPM PCRs are included (i.e., \<TPM2B_DIGEST\>, \<TPM2_Algo\>, and \<pcr-index\>), as are the timing counters from the TPM (i.e., \<clock\>, \<reset-counter\>, \<restart-counter\>, and \<safe\>). Likewise if the Attester has a TPM1.2, the TPM PCR values of the \<pcr-index\> and \<pcr-value\> are included.  Timing information comes from the Verifier itself via the \<timestamp\> object.
+(2.3) the PCR state information from the TPM Quote of (1) plus the time information associated with the TPM Quote of (1).  Specifically if the Attester has a TPM2, then the values of the TPM PCRs are included (i.e., \<TPM2B_DIGEST\>, \<tpm20-hash-algo\>, and \<pcr-index\>), as are the timing counters from the TPM (i.e., \<clock\>, \<reset-counter\>, \<restart-counter\>, and \<safe\>). Likewise if the Attester has a TPM1.2, the TPM PCR values of the \<pcr-index\> and \<pcr-value\> are included.  Timing information comes from the Verifier itself via the \<timestamp\> object.
 
 (2.4) a Verifier A signature across (2.1) though (2.3). This signature is encoded by \<verifier-signature\>, \<verifier-key-algorithm-type\>, and \<verifier-signature-key-name\>.
 
-Immediately subsequent to each Verifier appraisal cycle of an Attester, these Attestation Results MUST be pushed to the Attesting Router.   This is done via a daatstore write to the following YANG model on the Attester.  A YANG tree showing the relevant YANG objects is below.  The YANG model describing each of these objects is described later in the document.
+Immediately subsequent to each Verifier appraisal cycle of an Attester, these Attestation Results MUST be pushed to the Attesting Router.   This is done via a daatstore write to the following YANG model on the Attester.  A YANG tree showing the relevant YANG objects is below.  The YANG model describing each of these objects is described later in the document.  Note however that although the YANG model shows the specific objects which are needed, the specific set of objects needs to be encoded in CDDL.  This makes the payload going over TLS more efficient.  Look for this encoding in a new version of the draft which is coming shortly.
 
 ~~~ YANG
 module: ietf-trustworthiness-claims
   +--rw attestation-results!
-     +--rw trustworthiness-vector*              identityref
-     +--rw AIK-certificate-ref                  -> 
-     |                  /ks:keystore/asymmetric-keys/asymmetric-key
-     |                  /certificates/certificate/name
      +--rw (tpm-specification-version)?
-     |  +--:(TPM2.0) {taa:TPM20}?
-     |  |  +--rw tpm20-pcr-selection* [TPM20-hash-algo]
-     |  |  |  +--rw TPM20-hash-algo    identityref
-     |  |  |  +--rw pcr-index*         tpm:pcr
-     |  |  +--rw TPM2B_DIGEST                   binary
-     |  |  +--rw clock                          uint64
-     |  |  +--rw reset-counter                  uint32
-     |  |  +--rw restart-counter                uint32
-     |  |  +--rw safe                           boolean
-     |  +--:(TPM1.2) {taa:TPM12}?
-     |     +--rw pcr-index*                     pcr
-     |     +--rw tpm12-pcr-value*               binary
-     |     +--rw tpm12-quote-timestamp          yang:date-and-time
-     +--rw appraisal-timestamp                  yang:date-and-time
-     +--rw verifier-algorithm-type              identityref
-     +--rw verifier-signature                   binary
-     +--rw verifier-certificate-keystore-ref    -> 
-                        /ks:keystore/asymmetric-keys/asymmetric-key
-                        /certificates/certificate/name
+        +--:(tpm20-attestation-results-cddl) {taa:tpm20}?
+        |  +--rw trustworthiness-vector*              identityref
+        |  +--rw tpm20-pcr-selection* [tpm20-hash-algo]
+        |  |  +--rw tpm20-hash-algo    identityref
+        |  |  +--rw pcr-index*         tpm:pcr
+        |  +--rw TPM2B_DIGEST                         binary
+        |  +--rw clock                                uint64
+        |  +--rw reset-counter                        uint32
+        |  +--rw restart-counter                      uint32
+        |  +--rw safe                                 boolean
+        |  +--rw appraisal-timestamp
+        |  |       yang:date-and-time
+        |  +--rw verifier-algorithm-type              identityref
+        |  +--rw verifier-signature                   binary
+        |  +--rw verifier-certificate-keystore-ref
+        |          tpm:certificate-name-ref
+        +--:(tpm12-attestation-results-cddl) {taa:TPM12}?
+           +--rw trustworthiness-vector*              identityref
+           +--rw pcr-index*                           pcr
+           +--rw tpm12-pcr-value*                     binary
+           +--rw TPM12-quote-timestamp
+           |       yang:date-and-time
+           +--rw appraisal-timestamp
+           |       yang:date-and-time
+           +--rw verifier-algorithm-type              identityref
+           +--rw verifier-signature                   binary
+           +--rw verifier-certificate-keystore-ref
+                   tpm:certificate-name-ref
+
 (Do we want the Verifier signature across the keystore-ref?)
 ~~~
 {: #fig-results-tree title="Attestation Results Tree"}
@@ -368,58 +384,60 @@ Upon receipt of the Link Layer request from Step 3, a Stamped Passport is genera
 
 (4.2) New signed, verifiably fresh PCR measurements from time(EG'), which incorporates the freshness information known by the Relying Party from Step 3.  If it is a nonce, the freshness information will have been delivered as part of the link layer connection request in Steps 3.
 
-Stamped Passports contain following objects, defined in this document via YANG.  A subsequent draft will convert this into CDDL format so that the objects can efficiently be passed over EAP.  
+Stamped Passports contain following objects, defined in this document via YANG.  A subsequent draft will convert the objects below into CDDL format so that the objects can efficiently be passed over EAP.  
 
 If an Attester includes a TPM2, these YANG objects are:
  
 ~~~ 
-(still need to be scrubbed)
-       +--ro latest-tpm-quote
-       |  +--ro quote              binary
-       |  +--ro quote-signature    binary
-       +--ro latest-attestation-results
-          +--ro trustworthiness-vector*        identityref
-          +--ro TPM2B_DIGEST                   binary
-          +--ro tpm20-pcr-bank* [TPM-hash-algo]
-          |  +--ro TPM-hash-algo    identityref
-          |  +--ro pcr-index*   tpm:pcr       
-          +--ro clock                          uint64
-          +--ro reset-counter                  uint32
-          +--ro restart-counter                uint32
-          +--ro safe                           boolean
-          +--ro public-key-format              identityref
-          +--ro public-key                     binary
-          +--ro public-key-algorithm-type      identityref
-          +--ro verifier-signature-key-name?   string
-          +--ro verifier-signature             binary
+    +---n tpm20-stamped-passport
+       +--ro attestation-results
+       |  +--ro trustworthiness-vector*              identityref
+       |  +--ro tpm20-pcr-selection* [tpm20-hash-algo]
+       |  |  +--ro tpm20-hash-algo    identityref
+       |  |  +--ro pcr-index*         tpm:pcr
+       |  +--ro TPM2B_DIGEST                         binary
+       |  +--ro clock                                uint64
+       |  +--ro reset-counter                        uint32
+       |  +--ro restart-counter                      uint32
+       |  +--ro safe                                 boolean
+       |  +--ro appraisal-timestamp
+       |  |       yang:date-and-time
+       |  +--ro verifier-algorithm-type              identityref
+       |  +--ro verifier-signature                   binary
+       |  +--ro verifier-certificate-keystore-ref
+       |          tpm:certificate-name-ref
+       +--ro tpm20-quote
+          +--ro TPMS_QUOTE_INFO     binary
+          +--ro quote-signature?    binary
+          +--ro certificate-name    certificate-name-ref
+
 ~~~
 {: #fig-tpm2-passport title="YANG Tree for a TPM2 Stamped Passport"}
 
 And if the Attester is a TPM1.2, the YANG object are:
 
 ~~~
-(still need to be scrubbed)
-       +--ro latest-tpm-quote
-       |  +--ro version* []
-       |  |  +--ro major?      uint8
-       |  |  +--ro minor?      uint8
-       |  |  +--ro revMajor?   uint8
-       |  |  +--ro revMinor?   uint8
-       |  +--ro digest-value?   binary
-       +--ro latest-tpm12-attestation-results
-          +--ro trustworthiness-vector*        identityref
-          +--ro pcr-index*                     pcr
-          +--ro tpm12-pcr-value*               binary
-          +--ro timestamp                      yang:date-and-time
-          +--ro public-key-format              identityref
-          +--ro public-key                     binary
-          +--ro public-key-algorithm-type      identityref
-          +--ro verifier-signature-key-name?   string
-          +--ro verifier-signature             binary
+    +---n tpm12-stamped-passport
+       +--ro attestation-results
+       |  +--ro trustworthiness-vector*              identityref
+       |  +--ro pcr-index*                           pcr
+       |  +--ro tpm12-pcr-value*                     binary
+       |  +--ro TPM12-quote-timestamp
+       |  |       yang:date-and-time
+       |  +--ro appraisal-timestamp
+       |  |       yang:date-and-time
+       |  +--ro verifier-algorithm-type              identityref
+       |  +--ro verifier-signature                   binary
+       |  +--ro verifier-certificate-keystore-ref
+       |          tpm:certificate-name-ref
+       +--ro tpm12-quote
+          +--ro TPM_QUOTE2?         binary
+          +--ro certificate-name    certificate-name-ref
+
 ~~~
 {: #fig-tpm12-passport title="YANG Tree for a TPM1.2 Stamped Passport"}
 
-With either of these passport formats, if the \<latest-tpm-quote\> is verifiably fresh, then the state of the Attester can be appraised by a network peer.
+With either of these passport formats, if the TPM quote is verifiably fresh, then the state of the Attester can be appraised by a network peer.
 
 Note that with {{MACSEC}} or {{IEEE-802.1X}}, Step 3 plus Step 4 will repeat periodically independently of any subsequent iteration Steps 1 and Step 2. This allows for periodic reauthentication of the link layer in a way not bound to the updating of Verifier A's Attestation Results. 
 
@@ -442,7 +460,7 @@ Upon receipt of the Stamped Passport generated in Step 4, the Relying Party appr
     
 * If TPM2.0
     
-    1. If the \<TPM2B_DIGEST\>, \<TPML_PCR_SELECTION\>, \<reset-counter\>, \<restart-counter\> and \<safe\> are equal between the Attestation Results and the TPM Quote at time(EG') then Relying Party can accept (2.1) as the link's Trustworthiness Vector. Jump to Step 6.   
+    1. If the \<TPM2B_DIGEST\>, \<reset-counter\>, \<restart-counter\> and \<safe\> are equal between the Attestation Results and the TPM Quote at time(EG') then Relying Party can accept (2.1) as the link's Trustworthiness Vector. Jump to Step 6.   
     2. If the \<reset-counter\>, \<restart-counter\> and \<safe\> are equal between the Attestation Results and the TPM Quote at time(EG'), and the \<clock\> object from time(EG') has not incremented by an unacceptable number of seconds since the Attestation Result, then Relying Party can accept (2.1) as the link's Trustworthiness Vector. Jump to Step 6.) 
     3. Assign the link a null Trustworthiness Vector.
        
@@ -471,8 +489,8 @@ This YANG module imports modules from {{RATS-YANG}}, {{crypto-types}} and {{RFC6
 
 
 ~~~~ YANG
-<CODE BEGINS> ietf-trustworthiness-claims@2021-05-05.yang
-{::include /media/sf_rats/ietf-trustworthiness-claims@2021-05-05.yang}
+<CODE BEGINS> ietf-trustworthiness-claims@2021-05-12.yang
+{::include /media/sf_rats/ietf-trustworthiness-claims@2021-05-12.yang}
 <CODE ENDS>
 ~~~~ 
 
@@ -493,7 +511,7 @@ Access control for the objects in {{fig-results-tree}} should be tightly control
 
 # Acknowledgements
 
-Chennakesava Reddy Gaddam, Peter Psenak, Shwetha Bhandari, Adwaith Gautham, Annu Singh, Sujal Sheth, Nancy Cam Winget, and Ned Smith. 
+Peter Psenak, Shwetha Bhandari, Adwaith Gautham, Annu Singh, Sujal Sheth, Nancy Cam Winget, and Ned Smith. 
 
 #  Change Log
 
@@ -503,6 +521,7 @@ v02-v03
 
 * Integrated {{attestation-results}} as prerequisite context.
 * Totally rearranged content.  But there were not meaningful process changes.
+* Redid YANG model, and highlighted CDDL needs.
 
 v01-v02
 
@@ -541,3 +560,5 @@ Do we need functional requirements on how to handle traffic to/from Sensitive Su
 (2) Extension of the Stamped Passport?
 
 Format of the reference to the 'verifier-certificate-name' based on WG desire to include more information in the Stamped Passport.  Also we need to make sure that the keystore referenced names are globally unique, else we will need to include a node name in the object set.
+
+(3) Encoding of objects in CDDL.  A Verifier will want to sign encoded objects rather than YANG structures.  It is most efficient to encode the Attestation Results once on the Verifier, and push these down via a YANG model to the Attester.
