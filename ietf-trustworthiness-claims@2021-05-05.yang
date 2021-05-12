@@ -252,7 +252,7 @@ module ietf-trustworthiness-claims {
       the Attester, and returned the results within this container.";
     description
       "Retains the most recent Attestation Results for this Attester.
-      It must only be written by a Verfier which is to be trusted by a
+      It must only be written by a Verifier which is to be trusted by a
       Relying Party."; 
     leaf-list trustworthiness-vector {
       type identityref {
