@@ -64,12 +64,14 @@ module ietf-trustworthiness-claims {
   }
 
   identity trustworthiness-pass {
+    base trustworthiness-claim;
     description
       "A trustworthiness-claim which successfully meets an Appraisal  
       Policy for Evidence.";
   }
   
   identity trustworthiness-fail {
+    base trustworthiness-claim;
     description
       "A trustworthiness-claim which hit Appraisal Policy for Evidence
       necessary to fail an evaluation.  Note: this failure might or 
