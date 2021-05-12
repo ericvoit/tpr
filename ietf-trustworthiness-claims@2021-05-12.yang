@@ -1,0 +1,424 @@
+module ietf-trustworthiness-claims {
+  yang-version 1.1;
+  namespace 
+   "urn:ietf:params:xml:ns:yang:ietf-trustworthiness-claims";
+  prefix tc;
+  
+  import ietf-yang-types {
+    prefix yang;
+  }
+  import ietf-tcg-algs {
+    prefix taa;
+    reference
+      "draft-ietf-rats-yang-tpm-charra";
+  }
+  import ietf-keystore {
+    prefix ks;
+  }
+  import ietf-tpm-remote-attestation {
+    prefix tpm;
+    reference
+      "draft-ietf-rats-yang-tpm-charra";
+  }
+   
+  organization "IETF";
+  contact
+    "WG Web:   <http://tools.ietf.org/wg/rats/>
+     WG List:  <mailto:rats@ietf.org>
+
+     Editor:   Eric Voit
+               <mailto:evoit@cisco.com>";
+               
+  description
+    "This module contains conceptual YANG specifications for  
+    subscribing to attestation streams being generated from TPM chips.
+    
+    Copyright (c) 2020 IETF Trust and the persons identified as  
+    authors of the code.  All rights reserved.
+
+    Redistribution and use in source and binary forms, with or without 
+    modification, is permitted pursuant to, and subject to the license 
+    terms contained in, the Simplified BSD License set forth in  
+    Section 4.c of the IETF Trust's Legal Provisions Relating to IETF 
+    Documents (https://trustee.ietf.org/license-info).
+
+    This version of this YANG module is part of RFC XXXX; see the RFC 
+    itself for full legal notices.";
+  
+  revision 2021-05-12 {
+    description
+      "Initial version.";    
+    reference 
+      "draft-voit-rats-trustworthy-path-routing";
+  }
+
+
+  /*
+   * IDENTITIES
+   */ 
+
+  identity trustworthiness-claim {
+    base trustworthiness-claim;
+    description
+      "Base identity for a Verifier that uses its Appraisal Policy for 
+      Evidence to establish a trustworthiness level.";
+  }
+
+  identity trustworthiness-pass {
+    base trustworthiness-claim;
+    description
+      "A trustworthiness-claim which successfully meets an Appraisal  
+      Policy for Evidence.";
+  }
+  
+  identity trustworthiness-fail {
+    description
+      "A trustworthiness-claim which hit Appraisal Policy for Evidence
+      necessary to fail an evaluation.  Note: this failure might or 
+      might not consider whether sufficient Evidence has been 
+      provided.  In other words having insufficient evidence might 
+      not drive the setting of this failing trustworthiness-claim.";
+  }
+
+  identity hw-authentic {
+    base trustworthiness-pass;
+    description
+      "A Verifier has appraised an Attester as having authentic 
+       hardware, as well as authentic firmwhere where that can be 
+       verified.";
+  }
+  
+  identity hw-verification-fail {
+    base trustworthiness-fail;
+    description
+      "A Verifier has appraised an Attester has failed its hardware or  
+      firmware verification.";
+  }
+  
+  identity tee-identity-verified {
+    base trustworthiness-pass;
+    description
+      "A Verifier has appraised and verified an Attester's unique 
+      identity stored within the hardware of a Trusted Execution
+      Environment.";
+  }
+  
+  identity tee-identity-fail {
+    base trustworthiness-fail;
+    description
+      "A Verifier has been unable to assess or verify an Attester's  
+      unique identity";
+  }
+  
+  identity executables-verified {
+    base trustworthiness-pass;
+    description
+      "A Verifier has appraised the executables loaded on Attester's, 
+      and asserts that it recognizes and approves of all relevant 
+      executiable files loaded.";
+  }
+
+  identity executables-fail {
+    base trustworthiness-fail;
+    description
+      "A Verifier has appraised the executables loaded on Attester's, 
+      and has not been able to recognize or does not approved of all 
+      the executible files which have been loaded.";
+  }
+  
+  identity file-system-anomaly {
+    base trustworthiness-fail;
+    description
+      "A Verifier has found a file on an Attester which should not be 
+      present.";
+  }
+
+  
+  /*
+   * GROUPINGS
+   */
+
+  grouping trustworthiness-vector {
+    leaf-list trustworthiness-vector {
+      type identityref {
+        base trustworthiness-claim;
+      }
+      ordered-by system;
+      description
+        "One or more Trustworthiness Claims assigned which expose the 
+        Verifiers evaluation of the Evidence associated with the 
+        AIK which signed as associated TPM Quote.";
+    }
+  }
+
+  grouping tpm-signature {
+    leaf aik-algorithm-type {
+      type identityref {
+        base taa:asymmetric;
+      }
+      mandatory true;
+      description
+        "Platform asymmetric algorithm used in the Attester signature
+        process.";    
+    } 
+    leaf aik-signature {
+      type binary;
+      mandatory true;
+      description
+        "Signature of the Attester across a TPM Quote.";
+    }     
+    uses tpm:certificate-name-ref;
+  }
+  
+  grouping verifier-evidence {
+    description  
+      "Evidence generated by the Verifier.";
+    leaf appraisal-timestamp {
+      type yang:date-and-time;
+      mandatory true;
+      description
+        "The timestamp of the Verifier's appraisal.  This can be used
+        by a Relying Party to determine the freshness of the 
+        attestation results.";
+    }
+    leaf verifier-algorithm-type {
+      type identityref {
+        base taa:asymmetric;
+      }
+      mandatory true;
+      description
+        "Platform asymmetric algorithm used in the Verifier signature
+        process.";    
+    } 
+    leaf verifier-signature {
+      type binary;
+      mandatory true;
+      description
+        "Signature of the Verifier across all the current objects in 
+        the attestation-results container except for 'verifier-
+        signature' and 'verifier-certificate-keystore-ref'.
+        This assumes CDDL encoding of the objects in the current
+        order of this YANG model.";
+    }   
+    leaf verifier-certificate-keystore-ref {
+      type tpm:certificate-name-ref;
+      mandatory true;
+      description
+        "A reference to a specific certificate to an asymmetric key 
+        in the Keystore for the Verifier which can be used to validate  
+        the 'verifier-signature'. Note that the
+        'name' reference must be globally unique so that it can be 
+        read by the Relying Party in a way which identifies a 
+        specific Verifier."; 
+    }
+  }
+   
+  grouping tpm20-cddl-attestation-results {
+    description
+      "Elements combined into a CDDL representation for TPM2.0.";
+    uses trustworthiness-vector;
+    list tpm20-pcr-selection {
+      key "tpm20-hash-algo";
+      description
+        "Specifies the list of PCRs and Hash Algorithms used by the
+        Verifier.";
+      reference
+        "https://www.trustedcomputinggroup.org/wp-content/uploads/
+         TPM-Rev-2.0-Part-2-Structures-01.38.pdf  Section 10.9.7";
+      uses tpm:tpm20-hash-algo;
+      leaf-list pcr-index {
+        type tpm:pcr;
+        description
+          "The numbers of the PCRs associated with the TPM2B_DIGEST.";
+      }
+    }
+    leaf TPM2B_DIGEST {
+      mandatory true;
+      type binary;
+      description
+        "A hash of the latest PCR values (and the hash algorithm used)
+        which have been returned from a Verifier for the selected PCRs
+        identified within TPML_PCR_SELECTION.";
+      reference
+        "https://www.trustedcomputinggroup.org/wp-content/uploads/
+        TPM-Rev-2.0-Part-2-Structures-01.38.pdf  Section 10.12.1";
+    }    
+    leaf clock {
+      mandatory true;
+      type uint64;
+      description
+        "Clock is a monotonically increasing counter that advances whenever
+         power is applied to a TPM2. The value of Clock is incremented each
+         millisecond.";
+      reference
+        "https://www.trustedcomputinggroup.org/wp-content/uploads/
+         TPM-Rev-2.0-Part-2-Structures-01.38.pdf  Section 10.11.2";
+    }
+    leaf reset-counter {
+      mandatory true;
+      type uint32;
+      description
+        "This counter increments on each TPM Reset.  The most common
+        TPM Reset would be due to a hardware power cycle.";
+      reference
+        "https://www.trustedcomputinggroup.org/wp-content/uploads/
+         TPM-Rev-2.0-Part-2-Structures-01.38.pdf  Section 10.11.3";
+    }
+    leaf restart-counter {
+      mandatory true;
+      type uint32;
+      description
+        "This counter shall increment by one for each TPM Restart or
+        TPM Resume. The restartCount shall be reset to zero on a TPM
+        Reset.";
+      reference
+        "https://www.trustedcomputinggroup.org/wp-content/uploads/
+         TPM-Rev-2.0-Part-2-Structures-01.38.pdf  Section 10.11.4";
+    }
+    leaf safe {
+      mandatory true;
+      type boolean;
+      description
+        "This parameter is set to YES when the value reported in Clock
+        is guaranteed to be unique for the current Owner. It is set to
+        NO when the value of Clock may have been reported in a previous
+        attestation or access.";
+      reference
+        "https://www.trustedcomputinggroup.org/wp-content/uploads/
+        TPM-Rev-2.0-Part-2-Structures-01.38.pdf  Section 10.11.5";
+    }
+    uses tpm-aik-certificate;
+    uses verifier-evidence;
+  }
+
+  grouping tpm12-cddl-attestation-results {
+    description
+      "Elements combined into a CDDL representation for TPM1.2.";
+    uses trustworthiness-vector;
+    uses tpm:tpm12-pcr-selection;
+    leaf-list tpm12-pcr-value {
+      type binary;
+      description
+        "The list of TPM_PCRVALUEs from each PCR selected in sequence
+        of tpm12-pcr-selection.";
+      reference
+        "https://www.trustedcomputinggroup.org/wp-content/uploads/
+         TPM-Main-Part-2-TPM-Structures_v1.2_rev116_01032011.pdf
+         Section 10.9.7";
+    }
+    leaf TPM12-quote-timestamp {
+      type yang:date-and-time;
+      mandatory true;
+      description
+        "The timestamp for when the indicator of freshness (such as a 
+        nonce) was generated.  This is the indicator of freshness
+        which was used in the generation of the TPM1.2 quote.  This 
+        timestamp can be used by a Relying Party to determine the 
+        freshness of the attestation results.";
+    }
+    uses tpm-aik-certificate;
+    uses verifier-evidence;
+  }
+  
+  /*
+   * NOTIFICATIONS
+   */  
+
+  notification tpm20-stamped-passport {
+    description
+      "The augmentation of the most recent Attestation Results 
+      delivered from a Verifier with a TPM2.0 Quote.";
+    container attestation-results {
+      description
+        "The latest Verifier delivered Attestation Results.";
+      uses tpm20-cddl-attestation-results;
+    }
+    container tpm20-quote {
+      description
+        "The TPM2.0 quote delivered in response to a connectivity
+        request.";    
+      leaf TPMS_QUOTE_INFO {
+        type binary;
+        mandatory true;
+        description
+          "A hash of the latest PCR values (and the hash algorithm 
+           used) which have been returned from a Verifier for the 
+           selected PCRs and Hash Algorithms.";
+        reference
+          "https://www.trustedcomputinggroup.org/wp-content/uploads/
+           TPM-Rev-2.0-Part-2-Structures-01.38.pdf  Section 10.12.1";
+      }
+      leaf quote-signature {
+        type binary;
+        description
+          "Quote signature returned by TPM Quote.  The signature was
+           generated using the key associated with the
+           certificate 'name'.";
+        reference
+          "https://www.trustedcomputinggroup.org/wp-content/uploads/
+           TPM-Rev-2.0-Part-2-Structures-01.38.pdf  Section 11.2.1";
+      }
+      uses tpm:certificate-name-ref;
+    }
+  }
+
+  notification tpm12-stamped-passport {
+    description
+      "The augmentation of the most recent Attestation Results 
+      delivered from a Verifier with a TPM1.2 Quote.";
+    container attestation-results {
+      description
+        "The latest Verifier delivered Attestation Results.";
+      uses tpm12-cddl-attestation-results;
+    }
+    container tpm12-quote {
+      description
+        "The TPM1.2 quote delivered in response to a connectivity
+        request.";    
+      leaf TPM_QUOTE2 {
+        type binary;
+        description
+          "Result of a TPM1.2 Quote2 operation. This includes PCRs,
+           signatures, locality, the provided nonce and other data which
+           can be further parsed to appraise the Attester.";
+        reference
+          "TPM1.2 commands rev116 July 2007, Section 16.5";
+      }
+      uses tpm:certificate-name-ref;
+    }
+  }
+  
+  /*
+   * DATA NODES
+   */  
+
+  container attestation-results {
+    presence
+      "Indicates that Verifier has appraised the security posture of 
+      the Attester, and returned the results within this container.";
+    description
+      "Retains the most recent Attestation Results for this Attester.
+      It must only be written by a Verfier which is to be trusted by a
+      Relying Party."; 
+
+    choice tpm-specification-version {
+      description
+        "Identifies the cryptoprocessor API set which drove the 
+        Attestation Results.";
+      case tpm20-attestation-results-cddl {
+        if-feature "taa:tpm20";
+        description
+          "Attestation Results which are returned from the 
+           evaluation of Evidence which includes a TPM2 quote.";
+        uses tpm20-cddl-attestation-results;
+      }
+      case tpm12-attestation-results-cddl {
+        if-feature "taa:TPM12";
+        description
+          "Attestation Results which are returned from the 
+           evaluation of Evidence which includes a TPM1.2 quote.";
+        uses tpm12-cddl-attestation-results;
+      }
+    }            
+  }
+}
